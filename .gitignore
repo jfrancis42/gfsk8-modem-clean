@@ -1,0 +1,20 @@
+# Build directories
+build/
+build-rpi/
+build-windows/
+
+# Compiled artifacts
+*.a
+*.so
+*.so.*
+*.dll
+*.exe
+*.o
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
