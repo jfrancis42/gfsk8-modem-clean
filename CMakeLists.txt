@@ -61,6 +61,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_loopback.cpp")
     add_test(NAME loopback COMMAND test_loopback)
 endif()
 
+if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_loopback_all.cpp")
+    add_executable(test_loopback_all tests/test_loopback_all.cpp)
+    target_link_libraries(test_loopback_all PRIVATE gfsk8modem)
+    add_test(NAME loopback_all COMMAND test_loopback_all)
+endif()
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_decode_wav.cpp")
     add_executable(test_decode_wav tests/test_decode_wav.cpp)
     target_link_libraries(test_decode_wav PRIVATE gfsk8modem)

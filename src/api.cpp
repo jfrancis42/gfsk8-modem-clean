@@ -27,6 +27,7 @@
 #include "log.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <mutex>
@@ -180,23 +181,44 @@ void Decoder::decode(std::span<std::int16_t const> samples,
     dec_data.params.kin        = static_cast<int>(n);
     dec_data.params.nfqso      = 0;
 
-    // Set each submode's window to the most recent NMAX samples.
+    // Set each submode's decode window to cover the most recently completed
+    // UTC-aligned period.  Each JS8 submode transmits on a strict UTC grid:
+    // Normal every 15 s, Fast every 10 s, Turbo every 6 s, Slow every 30 s,
+    // Ultra every 4 s.  Without alignment, the window for a non-Normal submode
+    // would lag by up to one full period, putting most of the signal outside
+    // the decoder's timing-search range and causing missed decodes.
+    //
+    // Algorithm: given the current UTC second-within-the-minute,
+    //   elapsed = sec_in_minute % period_sec
+    //   kpos    = buffer_end - (elapsed + period_sec) * sample_rate
+    // This places the window start at the beginning of the last complete period.
     {
+        auto const epoch_sec = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        int const sec_in_minute = static_cast<int>(epoch_sec % 60);
+
+        auto alignedKpos = [&](int sm) -> int {
+            int const period_sec = static_cast<int>(GFSK8::Submode::period(sm));
+            int const elapsed    = sec_in_minute % period_sec;
+            int const kpos       = GFSK8_RX_SAMPLE_SIZE - (elapsed + period_sec) * GFSK8_RX_SAMPLE_RATE;
+            return std::max(0, kpos);
+        };
+
         int const nmaxA = static_cast<int>(GFSK8::Submode::samplesPerPeriod(0));
         int const nmaxB = static_cast<int>(GFSK8::Submode::samplesPerPeriod(1));
         int const nmaxC = static_cast<int>(GFSK8::Submode::samplesPerPeriod(2));
         int const nmaxE = static_cast<int>(GFSK8::Submode::samplesPerPeriod(4));
         int const nmaxI = static_cast<int>(GFSK8::Submode::samplesPerPeriod(8));
 
-        dec_data.params.kposA = GFSK8_RX_SAMPLE_SIZE - nmaxA;
+        dec_data.params.kposA = alignedKpos(0);
         dec_data.params.kszA  = nmaxA;
-        dec_data.params.kposB = GFSK8_RX_SAMPLE_SIZE - nmaxB;
+        dec_data.params.kposB = alignedKpos(1);
         dec_data.params.kszB  = nmaxB;
-        dec_data.params.kposC = GFSK8_RX_SAMPLE_SIZE - nmaxC;
+        dec_data.params.kposC = alignedKpos(2);
         dec_data.params.kszC  = nmaxC;
-        dec_data.params.kposE = GFSK8_RX_SAMPLE_SIZE - nmaxE;
+        dec_data.params.kposE = alignedKpos(4);
         dec_data.params.kszE  = nmaxE;
-        dec_data.params.kposI = GFSK8_RX_SAMPLE_SIZE - nmaxI;
+        dec_data.params.kposI = alignedKpos(8);
         dec_data.params.kszI  = nmaxI;
     }
 
